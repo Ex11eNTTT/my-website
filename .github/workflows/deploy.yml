@@ -1,60 +1,63 @@
-# Название нашего рабочего процесса (видно в интерфейсе GitHub)
 name: Deploy to GitHub Pages on Release
 
-# Запускаем этот workflow только при создании нового релиза
 on:
   release:
     types: [published]
 
-# Даем разрешение на запись в репозиторий (чтобы пушить в gh-pages)
 permissions:
   contents: write
 
-# Джобы, которые будут выполняться
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest # Запускаем на последней версии Ubuntu
+    runs-on: ubuntu-latest
 
     steps:
       # Шаг 1: Получить код из репозитория
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Шаг 2: Настроить Node.js (не для запуска кода, а для удобства)
+      # Шаг 2: Получить существующую ветку gh-pages (чтобы сохранить старые версии)
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-content
+
+      # Шаг 3: Настроить Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # Шаг 3: Создать папку для финальной сборки
-      - name: Create build directory
-        run: mkdir build
-
-      # Шаг 4: Скопировать все нужные файлы в папку build
-      - name: Copy files to build
-        run: |
-          cp -r ./* ./build/ || true
-          # Имитируем "сборку" - на самом деле просто копируем файлы
-          # В реальном проекте здесь могли бы быть команды типа npm run build
-
-      # Шаг 5: Получить название релиза (тег)
+      # Шаг 4: Получить название релиза
       - name: Get release version
         id: get_version
         run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      # Шаг 6: Создать версионную копию сайта в папке build/v{version}/
-      - name: Create versioned site
+      # Шаг 5: Создать структуру папок
+      - name: Prepare deployment
         run: |
+          # Создаем основную папку сборки
+          mkdir -p build
+          
+          # Копируем ВСЕ старые версии из gh-pages в новую сборку
+          if [ -d "gh-pages-content" ]; then
+            cp -r gh-pages-content/* build/ || true
+          fi
+          
+          # Создаем новую версионную папку
           mkdir -p build/v${{ steps.get_version.outputs.version }}
-          # Копируем ВСЕ файлы сайта в версионную папку
+          
+          # Копируем текущие файлы в новую версионную папку
           cp -r ./ru ./en ./index.html ./build/v${{ steps.get_version.outputs.version }}/
-          # Также копируем основную версию в корень build
+          
+          # Также обновляем основную (latest) версию
           cp -r ./ru ./en ./index.html ./build/
 
-      # Шаг 7: Развернуть в ветку gh-pages
+      # Шаг 6: Развернуть в ветку gh-pages
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build
-          force_orphan: false # Очищает ветку перед деплоем, чтобы не копился мусор
+          force_orphan: false
