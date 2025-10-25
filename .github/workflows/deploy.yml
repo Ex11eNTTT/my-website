@@ -46,7 +46,10 @@ jobs:
       - name: Create versioned site
         run: |
           mkdir -p build/v${{ steps.get_version.outputs.version }}
+          # Копируем ВСЕ файлы сайта в версионную папку
           cp -r ./ru ./en ./index.html ./build/v${{ steps.get_version.outputs.version }}/
+          # Также копируем основную версию в корень build
+          cp -r ./ru ./en ./index.html ./build/
 
       # Шаг 7: Развернуть в ветку gh-pages
       - name: Deploy to GitHub Pages
